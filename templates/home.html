@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Homepage</title>
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Lora&display=swap" rel="stylesheet">
+
+    <style>
+        body {
+            font-family: 'Lora', serif;
+            margin: 0;
+            padding: 0;
+            background-color: #414141; 
+            color: #f0f0f0;
+        }
+        header {
+            background-color: #272727;
+            color: #ffffffc0;
+            padding: 1.5rem 0.7rem; /* Add padding: 1.5rem on top/bottom, 2rem on left/right */
+            text-align: center;
+            position: fixed; /* Make the header fixed */
+            top: 0; /* Stick to the top of the viewport */
+            width: 100%; /* Ensure it spans the full width of the viewport */
+            z-index: 1000; /* Higher z-index to make it stay above the sidebar */
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.3); /* Optional shadow for depth */
+            box-sizing: border-box; /* Includes padding in the width calculation */
+        }
+
+        header h1 {
+            font-size: 2.25rem;
+            letter-spacing: 0.05rem;
+            color: #ffffff;
+            text-shadow: 3px 3px 6px rgb(0, 0, 0);
+            font-weight: normal;
+            margin: 0;
+            padding: 1rem 0; /* Add padding to separate the text from the bars */
+            position: relative;
+            text-align: center;
+        }
+
+        header h1::before,
+        header h1::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            width: 100%;
+            height: 4px; /* Adjust the height of the bars */
+            background: linear-gradient(to right, rgba(18, 93, 255, 0.75), hsla(199, 100%, 69%, 0.75), 
+                hsla(59, 100%, 50%, 0.75), hsla(59, 100%, 50%, 0.75), hsla(14, 77%, 59%, 0.75), 
+                hsla(0, 97%, 61%, 0.75)); /* Gradient colors */
+        }
+
+        header h1::before {
+            top: -10px; /* Position the top bar slightly above the text */
+        }
+
+        header h1::after {
+            bottom: -10px; /* Position the bottom bar slightly below the text */
+        }
+        nav {
+            position: fixed;
+            top: 0; /* Align the top of the sidebar with the top of the viewport */
+            left: 0;
+            height: 100%;
+            width: 200px;
+            background-color: #333333;
+            padding-top: 8rem; /* Space for the header (adjusted to match header height) */
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            box-shadow: 2px 0 5px rgba(0, 0, 0, 0.5);
+            z-index: 999; /* Lower z-index than the header */
+        }
+        nav .button {
+            display: block;
+            padding: 0.5rem 1rem;
+            margin: 0.5rem 0;
+            width: 80%;
+            text-align: center;
+            background-color: #333333;
+            color: #ffffffd3;
+            text-decoration: none;
+            font-size: 1rem;
+            border-radius: 5px;
+            transition: color 0.3s ease;
+            position: relative;
+        }
+        nav .button:after { 
+            content: '';
+            position: absolute;
+            left: 0;
+            bottom: 0;
+            width: 0;
+            height: 2px;
+            background: linear-gradient(to right, rgba(18, 93, 255, 0.75), hsla(199, 100%, 69%, 0.75),hsla(59, 100%, 50%, 0.75), 
+            hsla(59, 100%, 50%, 0.75), hsla(14, 77%, 59%, 0.75), hsla(0, 97%, 61%, 0.75)); /* Gradient colors */
+            transition: width 0.3s ease;
+        }
+        nav .button:hover {
+            background-color: #575757; /* Lighter gray for hover */
+            color: #ffffff;
+        }
+        nav .button:hover::after {
+            width: 100%;
+        }
+        main {
+            margin-left: 220px; /* Leave space for the sidebar */
+            padding: 2rem;
+            padding-top: 9rem; /* Space for the header (adjusted to match header height) */
+            font-size: 1.2rem;
+        }
+        footer {
+            margin-top: 2rem;
+            font-size: 0.9rem;
+            color: #bbbbbb;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>MACRO Observations</h1>
+    </header>
+    <!-- <nav>
+        {% if logged_in %}
+            <a href="/" class="button">Home</a>
+            <a href="/schedule" class="button">Schedule an Observation</a>
+            <a href="/account" class="button">Account Details</a>
+            <a href="/logout" class="button">Logout</a>
+        {% else %}
+            <a href="/" class="button">Home</a>
+            <a href="/login" class="button">Login</a>
+            <a href="/register" class="button">Register</a>
+        {% endif %}
+    </nav>
+   <main>
+        {% if logged_in %}
+            <p>Welcome! {{ session['username'] }}!</p>
+        {% else %}
+            <p>Welcome!</p>
+            <p>Please log in to schedule an observation.</p>
+        {% endif %}
+   </main> -->
+    <nav>
+        <a href="/" class="button">Home</a>
+        <a href="/login" class="button">Login</a>
+        <a href="/register" class="button">Register</a>
+        <a href="/schedule" class="button">Schedule an Observation</a>
+        <a href="/account" class="button">Account Details</a>
+        <a href="/logout" class="button">Logout</a>
+    </nav>
+    <main>
+        <h2>Welcome to MACRO Observations!</h2>
+        <p>MACRO Observations is a web application that allows you to schedule astronomical observations.</p>
+        <p>Log in or register to schedule an observation.</p>
+    </main>
+</body>
+</html>
