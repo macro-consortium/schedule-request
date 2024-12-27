@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schedule from File</title>
+    <link href="https://fonts.googleapis.com/css2?family=Lora&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <style>
+        main {
+            margin-left: calc(200px + 1rem);
+            padding-top: 10rem;
+            display: flex;
+            justify-content: center;
+            align-items: top;
+            height: 9rem;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Schedule from File</h1>
+    </header>
+    {% include 'nav.html' %}
+    <main>
+        <div class="form-container">
+            <form method="POST" action="/upload_schedule" enctype="multipart/form-data">
+                <label for="schedule_file">Upload a Schedule File:</label>
+                <input type="file" id="schedule_file" name="schedule_file" accept=".sch,.txt,.csv,.ecsv" required><br>
+                <button type="submit">Upload</button>
+            </form>
+        </div>
+        {% include 'flashes.html' %}
+    </main>
+    {% include 'fadeout.html' %}
+</body>
+</html>
