@@ -572,10 +572,3 @@ def ra_dec_check(ra, dec):
 
     return ra_hours, dec_degrees
 
-
-##### TESTING #####
-##### Please delete this section #####
-
-if __name__ == "__main__":
-    connection = connect_observation_db()
-    list_observation_requests(connection)
