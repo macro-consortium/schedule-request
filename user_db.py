@@ -1,5 +1,162 @@
-import sqlite3
-import bcrypt
+import sqlite3, bcrypt, secrets, logging
+from datetime import datetime, timedelta
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO, 
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=[
+        logging.StreamHandler()
+    ]
+    )
+
+
+def create_sessions_table(cursor):
+    """
+    Create the sessions table to manage active user sessions.
+
+    The sessions table stores information about active user sessions, including the session ID, user ID,
+    observer code, creation time, and expiration time.
+
+    Parameters
+    ----------
+    cursor : :class:`sqlite3.Cursor`
+        A cursor object to execute SQL queries.
+
+    Returns
+    -------
+    None
+    """
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS sessions (
+        session_id TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        observer_code TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        expires_at TIMESTAMP NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users (user_id) ON DELETE CASCADE
+    );
+    """)
+    logging.info("Sessions table created or already exists.")
+
+
+def start_session(connection, user_id, duration_minutes=60):
+    """
+    Start a new session for the user.
+
+    A session is created by generating a session ID, setting the expiration time, and inserting the session
+
+    Parameters
+    ----------
+    connection : :class:`sqlite3.Connection`
+        A connection object to the SQLite database.
+    user_id : `int`
+        The ID of the user starting the session.
+    duration_minutes : `int`, optional
+        Duration of the session in minutes. Default is 60 minutes.
+
+    Returns
+    -------
+    `str`
+        The session token.
+
+    Raises
+    ------
+    `sqlite3.Error`
+        If an error occurs during session creation.
+    """
+    session_id = secrets.token_hex(16)
+    expires_at = datetime.now() + timedelta(minutes=duration_minutes)
+    cursor = connection.cursor()
+    cursor.execute("SELECT observer_code FROM users WHERE user_id = ?", (user_id,))
+    result = cursor.fetchone()
+    if not result:
+        logging.error("Observer code not found for user ID: %d", user_id)
+        raise ValueError("Observer code is required to start a session.")
+    
+    observer_code = result[0]
+    
+    try:
+        cursor.execute("""
+        INSERT INTO sessions (session_id, user_id, observer_code, expires_at)
+        VALUES (?, ?, ?, ?);
+        """, (session_id, user_id, observer_code, expires_at))
+        connection.commit()
+        logging.info(f"Session started for user ID {user_id}.")
+        return session_id
+    except sqlite3.Error as e:
+        logging.error(f"Error starting session: {e}")
+        raise
+
+
+def validate_session(connection, session_id):
+    """
+    Validate a session by checking its expiration.
+
+    Parameters
+    ----------
+    connection : :class:`sqlite3.Connection`
+        A connection object to the SQLite database.
+    session_id : `str`
+        The session token.
+
+    Returns
+    -------
+    `int`
+        The user ID if the session is valid, otherwise `None`.
+
+    Raises
+    ------
+    `sqlite3.Error`
+        If an error occurs during session validation.
+    """
+    cursor = connection.cursor()
+    try:
+        cursor.execute("""
+        SELECT user_id FROM sessions
+        WHERE session_id = ? AND expires_at > CURRENT_TIMESTAMP;
+        """, (session_id,))
+        result = cursor.fetchone()
+        if result:
+            logging.info("Session validated successfully.")
+            return result[0]
+        else:
+            logging.warning("Session validation failed.")
+            return None
+    except sqlite3.Error as e:
+        logging.error(f"Error validating session: {e}")
+        raise
+
+
+def end_session(connection, session_id):
+    """
+    End a user session by deleting it from the database.
+
+    Parameters
+    ----------
+    connection : :class:`sqlite3.Connection`
+        A connection object to the SQLite database.
+    session_id : `str`
+        The session token to end.
+
+    Returns
+    -------
+    None
+
+    Raises
+    ------
+    `sqlite3.Error`
+        If an error occurs during session deletion.
+    """
+    cursor = connection.cursor()
+    try:
+        cursor.execute("DELETE FROM sessions WHERE session_id = ?;", (session_id,))
+        connection.commit()
+        logging.info("Session ended successfully.")
+    except sqlite3.Error as e:
+        logging.error(f"Error ending session: {e}")
+        raise
+
 
 # Function to connect to the database
 def connect_db():
@@ -41,13 +198,13 @@ def create_users_table(cursor):
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS users (
         user_id INTEGER PRIMARY KEY AUTOINCREMENT,
-        username TEXT NOT NULL UNIQUE,
         password_hash TEXT NOT NULL,
         email TEXT UNIQUE,
         first_name TEXT NOT NULL,
         last_name TEXT NOT NULL,
         institution TEXT,
         observer_code TEXT UNIQUE,
+        user_level TEXT DEFAULT 'novice',
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
     """)
@@ -150,7 +307,7 @@ def generate_observer_code(institution_code, first_name, last_name, existing_cod
 
 
 # Function to add a new user
-def add_user(connection, username, password, email, institution, first_name, last_name):
+def add_user(connection, hashed_password, email, institution, first_name, last_name, user_level='novice'):
     """
     Add a new user to the database.
 
@@ -181,8 +338,6 @@ def add_user(connection, username, password, email, institution, first_name, las
         If an error occurs while inserting the user into the database.
     """
     try:
-        hashed_password = hash_password(password)
-
         # Fetch the static institution code
         cursor = connection.cursor()
         cursor.execute("SELECT code FROM institutions WHERE name = ?", (institution,))
@@ -195,9 +350,9 @@ def add_user(connection, username, password, email, institution, first_name, las
 
         # Insert the user into the database
         cursor.execute("""
-        INSERT INTO users (username, password_hash, email, first_name, last_name, institution, observer_code) 
+        INSERT INTO users (password_hash, email, first_name, last_name, institution, observer_code, user_level) 
         VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (username, hashed_password, email, first_name, last_name, institution, observer_code))
+        """, (hashed_password, email, first_name, last_name, institution, observer_code, user_level))
         connection.commit()
         print(f"User '{first_name} {last_name}' added successfully with institution '{institution}' and observer code '{observer_code}'.")
     except sqlite3.IntegrityError as e:
@@ -224,11 +379,12 @@ def validate_user_by_identifier(connection, identifier):
     `sqlite3.Error`
         If an error occurs while executing the SQL query.
     """
+    print(f"Identifier received: {identifier}")  # Debugging
     cursor = connection.cursor()
     cursor.execute("""
-    SELECT * FROM users WHERE username = ? OR email = ?;
+        SELECT * FROM users WHERE email = ? OR observer_code = ?;
     """, (identifier, identifier))
-    return cursor.fetchone()  # Returns the user record or None if not found
+    return cursor.fetchone()
 
 
 def login_user(connection, identifier, password):
@@ -246,8 +402,8 @@ def login_user(connection, identifier, password):
 
     Returns
     -------
-    `bool`
-        `True` if the login was successful, `False` otherwise.
+    `str`
+        A session token if the login is successful, or `None` if failed.
 
     Raises
     ------
@@ -256,13 +412,12 @@ def login_user(connection, identifier, password):
     """
     user = validate_user_by_identifier(connection, identifier)
     if user:
-        stored_hash = user[2]  # The password hash is in the 3rd column
-        first_name = user[4]  # The first_name is in the 5th column
+        user_id, stored_hash, first_name = user[0], user[2], user[4]
         if check_password(password, stored_hash):
-            print(f"Login successful. Welcome, {first_name}!")
-            return True    
-    print("Login attempt failed: Invalid username/email or password.")
-    return False
+            logging.info(f"Login successful. Welcome, {first_name}!")
+            return start_session(connection, user_id)
+    logging.warning("Login failed: Invalid username/email or password.")
+    return None
    
 
 def initiate_password_reset(connection, identifier):
@@ -282,9 +437,11 @@ def initiate_password_reset(connection, identifier):
         return None
 
 
-def reset_password(connection, user_id, new_password):
+def reset_password(connection, session_id, user_id, new_password):
     """
-    Resets the password for a user.
+    Reset password.
+
+    Resets the password for a user. Checks to make sure the current user is logged in before resetting the password.
 
     Parameters
     ----------
@@ -304,6 +461,10 @@ def reset_password(connection, user_id, new_password):
     `sqlite3.Error`
         If an error occurs while executing
     """
+
+    if not validate_session(connection, session_id):
+        logging.warning("Unauthorized request: Invalid or expired session.")
+        return    
     hashed_password = hash_password(new_password)  # Hash the new password
     cursor = connection.cursor()
     cursor.execute("""
