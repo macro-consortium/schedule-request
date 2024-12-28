@@ -1,3 +1,5 @@
+/* need to dynamically change the padding of the nav manu when the screen size is squished */
+
 body {
     font-family: 'Lora', serif;
     margin: 0;
@@ -6,27 +8,44 @@ body {
     color: #f0f0f0;
 }
 header {
+    display: flex;
+    align-items: center;
     background-color: #272727;
     color: #ffffffc0;
-    padding: 1.5rem 0.7rem; 
-    text-align: center;
-    position: fixed; 
-    top: 0; 
-    width: 100%; 
+    padding: 1.5rem 0.7rem;
+    position: fixed;
+    top: 0;
+    width: 100%;
     z-index: 1000;
-    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.3); 
+    box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.3);
     box-sizing: border-box;
+    flex-wrap: wrap;
 }
+
 header h1 {
-    font-size: 2.25rem;
+    font-size: 2.1rem;
     letter-spacing: 0.05rem;
     color: #ffffff;
     text-shadow: 3px 3px 6px rgb(0, 0, 0);
     font-weight: normal;
     margin: 0;
-    padding: 1rem 0; 
+    padding: 1rem 0;
     position: relative;
-    text-align: center;
+    display: flex;
+    align-items: center;
+    width: 100%; 
+}
+header h1 span.left {
+    flex: 0 1 auto;
+    text-align: left;
+    padding-left: 2.5rem;
+    padding-right: 4rem;
+}
+
+header h1 span.center {
+    flex: 1 1 auto;
+    text-align: left;
+    padding-right: 2rem;
 }
 header h1::before,
 header h1::after {
@@ -50,7 +69,7 @@ nav {
     top: 0; 
     left: 0;
     height: 100%;
-    width: 200px;
+    width: 11rem;
     background-color: #333333;
     padding-top: 8rem; 
     display: flex;
@@ -149,6 +168,47 @@ button:hover {
     font-size: 1rem;
     max-width: 400px; 
     text-align: center;
+}
+#toast-container {
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    width: 300px;
+    z-index: 1000;
+}
+
+.toast {
+    background-color: #333;
+    color: #fff;
+    padding: 10px;
+    margin-bottom: 10px;
+    border-radius: 5px;
+    font-size: 1rem;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    opacity: 1;
+    animation: fadeIn 0.5s ease, fadeOut 5s ease forwards;
+}
+
+.toast.success {
+    background-color: #4CAF50;
+}
+
+.toast.error {
+    background-color: #F44336;
+}
+
+.toast.warning {
+    background-color: #FFC107;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeOut {
+    from { opacity: 1; }
+    to { opacity: 0; display: none; }
 }
 footer {
     margin-top: 2rem;
