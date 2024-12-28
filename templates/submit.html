@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Schedule Observation</title>
+    <link href="https://fonts.googleapis.com/css2?family=Lora&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <style>
+        main {
+            margin-left: calc(200px + 1rem);
+            padding-top: 10rem;
+            display: flex;
+            justify-content: center;
+            align-items: top;
+            min-height: 10vh;
+        }
+        
+        .form-container {
+            flex: 1;
+            padding: 1rem;
+            background-color: #333333;
+            border-radius: 8px;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.3);
+            width: auto;
+            height: auto;
+        }
+        input[type="text"], input[type="email"], input[type="password"] {
+            width: 90%;
+            padding: 0.5rem;
+            margin: 0.5rem 0;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+        }
+        button {
+            background-color: #575757;
+            color: #ffffff;
+            padding: 0.7rem 1.5rem;
+            border: none;
+            border-radius: 5px;
+            font-size: 1rem;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #6a6a6a;
+        }
+        /* .flashes {
+            position: fixed; 
+            top: 15rem; 
+            transform: translateX(-50%); 
+            z-index: 1000; 
+            background-color: #ffcccb; 
+            color: #660000; 
+            border: 1px solid #660000; 
+            border-radius: 5px;
+            padding: 1rem;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.3);
+            font-size: 1rem;
+            max-width: 400px; 
+            text-align: center; /
+        } */
+        .mode-switcher {
+            text-align: left;
+            margin-bottom: 1rem;
+        }
+
+        select {
+            padding: 0.5rem;
+            font-size: 1rem;
+            border-radius: 5px;
+            border: 1px solid #ccc;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>
+            <span class="left">MACRO Observations: </span>
+            <span class="center">Submit a Request</span>
+        </h1>
+    </header>
+    {% include 'nav.html' %}
+    <main>
+        <div class="content-wrapper">
+            <div class="form-container">
+                <div class="mode-switcher">
+                    <label for="mode">Select Mode:</label>
+                    <select id="mode" onchange="switchMode()">
+                        <option value="single">Single Field Observation</option>
+                        <option value="file">Submit by File</option>
+                    </select>
+                </div>
+    
+                <div id="form-single">
+                    <form method="POST" action="/schedule">
+                        <label for="target_name">Target Name:</label>
+                        <input type="text" id="target_name" name="target_name"><br>
+                    
+                        <label for="ra">RA (Right Ascension):</label>
+                        <input type="text" id="ra" name="ra" required><br>
+                    
+                        <label for="dec">Dec (Declination):</label>
+                        <input type="text" id="dec" name="dec" required><br>
+                    
+                        <label for="nexp">Number of Exposures:</label>
+                        <input type="text" id="nexp" name="nexp" required><br>
+                    
+                        <label for="exposure_time">Exposure Time (seconds):</label>
+                        <input type="text" id="exposure_time" name="exposure_time" required><br>
+                    
+                        <label for="filters">Filters:</label>
+                        <input type="text" id="filters" name="filters"><br>
+                    
+                        {% if user_level in ['intermediate', 'advanced', 'lead', 'admin'] %}
+                            <label for="cadence">Cadence (seconds):</label>
+                            <input type="text" id="cadence" name="cadence"><br>
+                        {% endif %}
+    
+                        {% if user_level == 'admin' %}
+                            <label for="priority_override">Override Priority:</label>
+                            <input type="checkbox" id="priority_override" name="priority_override"><br>
+                        {% endif %}
+                    
+                        <button type="submit">Schedule Observation</button> 
+                    </form>
+                </div>
+                
+                <div id="form-file" style="display: none;">
+                    <form method="POST" action="/submit" enctype="multipart/form-data">
+                        <input type="hidden" name="form_type" value="file">
+                        <label for="schedule_file">Upload a Schedule File:</label>
+                        <input type="file" id="schedule_file" name="schedule_file" accept=".sch,.txt,.csv,.ecsv" required><br>
+                        <button type="submit">Upload</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+        {% include 'flashes.html' %}
+    </main>
+    {% include 'fadeout.html' %}
+</body>
+<script>
+    function switchMode() {
+        const selectedMode = document.getElementById('mode').value;
+        document.getElementById('form-single').style.display = selectedMode === 'single' ? 'block' : 'none';
+        document.getElementById('form-file').style.display = selectedMode === 'file' ? 'block' : 'none';
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+        const currentMode = "{{ form_type }}"; // Injected from the backend
+        document.getElementById('mode').value = currentMode;
+        switchMode(); // Ensure the correct form is displayed
+    });
+</script>
+</html>

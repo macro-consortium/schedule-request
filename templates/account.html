@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Homepage</title>
+    <title>Account Details</title>
     <link href="https://fonts.googleapis.com/css2?family=Lora&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <style>
@@ -18,29 +18,23 @@
         }
     </style>
 </head>
-
-<body>
+    <body>
     <header>
-        <h1>            
+        <h1>
             <span class="left">MACRO Observations: </span>
-            <span class="center">Home</span>
-            </h1>
+            <span class="center">Account Details</span>
+        </h1>
     </header>
 
     {% include 'nav.html' %}
 
     <main>
-        {% if logged_in %}
-            <p>Welcome, {{ session['first_name'] }}!</p>
-            <p>Your user level is: <strong>{{ user_level }}</strong></p>
-        {% else %}
-            <p>Welcome!</p>
-            <p>Please log in to schedule an observation.</p>
-        {% endif %}
-        
-        {% include 'flashes.html' %}
+        <h2>Account Details</h2>
+        <p>First Name: {{ session['first_name'] }}</p>
+        <p>Last Name: {{ session['last_name'] }}</p>
+        <p>Email: {{ session['email'] }}</p>
+        <p>User Level: {{ user_level }}</p>
     </main>
     {% include 'fadeout.html' %}
 </body>
-
 </html>

@@ -1,16 +1,12 @@
 <nav>
     {% if user_level in ['novice', 'intermediate', 'advanced', 'admin'] %}
             <a href="/" class="button">Home</a>        
-            <a href="/schedule" class="button">Schedule an Observation</a>
-        {% if user_level in ['intermediate', 'advanced', 'admin'] %}
-            <a href="/upload_schedule" class="button">Schedule from File</a>
-            <a href="/view_observations" class="button">View & Edit Observations</a>
-        {% endif %}
+            <a href="/submit" class="button">Submit a Request</a>
+            <a href="/observations" class="button">View & Edit Observations</a>
         {% if user_level in ['admin'] %}
-            <a href="/manage_observations" class="button">Manage Observations</a>
-            <a href="/admin_dashboard" class="button">Admin Dashboard</a>
+            <a href="/admin" class="button">Admin</a>
         {% endif %}
-        <a href="/account_details" class="button">Account Details</a>
+        <a href="/account" class="button">Account</a>
         <!-- <a href="/faq" class="button">FAQ</a> -->
         <a href="/logout" class="button">Logout</a>
     {% endif %}

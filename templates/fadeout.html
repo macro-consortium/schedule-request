@@ -1,11 +1,12 @@
 <script>
     // Auto-dismiss flash messages after 5 seconds
     setTimeout(function() {
-        const flashes = document.querySelector('.flashes');
-        if (flashes) {
-            flashes.style.transition = "opacity 0.5s ease-out";
+        const flashes = document.querySelector('.flashes .toast');
+
+        flashes.forEach(flash => {
+            flashes.style.transition = "opacity 0.25s ease-out";
             flashes.style.opacity = "0";
             setTimeout(() => flashes.remove(), 500); // Remove from DOM after fading out
-        }
+        });
     }, 1000); // Adjust the delay (5000ms = 5 seconds)
 </script>
