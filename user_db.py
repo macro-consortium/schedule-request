@@ -8,7 +8,6 @@ logging.basicConfig(
     handlers=[
         logging.StreamHandler()])
 
-
 def create_sessions_table(cursor):
     """
     Create the sessions table to manage active user sessions.
@@ -36,7 +35,6 @@ def create_sessions_table(cursor):
     );
     """)
     logging.info("Sessions table created or already exists.")
-
 
 def start_session(connection, user_id, duration_minutes=60):
     """
@@ -86,7 +84,6 @@ def start_session(connection, user_id, duration_minutes=60):
         logging.error(f"Error starting session: {e}")
         raise
 
-
 def validate_session(connection, session_id):
     """
     Validate a session by checking its expiration.
@@ -125,7 +122,6 @@ def validate_session(connection, session_id):
         logging.error(f"Error validating session: {e}")
         raise
 
-
 def end_session(connection, session_id):
     """
     End a user session by deleting it from the database.
@@ -155,44 +151,14 @@ def end_session(connection, session_id):
         logging.error(f"Error ending session: {e}")
         raise
 
-
-# Function to connect to the database
 def connect_db():
     """
     Connect to the SQLite database and return the connection object.
-
-    Returns
-    -------
-    `sqlite3.Connection`
-        A connection object to the SQLite database.
-
-    Raises
-    ------
-    `sqlite3.Error`
-        If an error occurs while connecting to the database.
     """
     connection = sqlite3.connect("./user_data.db")
     return connection
 
-# Function to create the users table
 def create_users_table(cursor):
-    """
-    Create the users table in the database.
-
-    Parameters
-    ----------
-    `cursor` : `sqlite3.Cursor`
-        A cursor object to execute SQL queries.
-    
-    Returns
-    -------
-    None
-
-    Raises
-    ------
-    `sqlite3.Error`
-        If an error occurs while executing the SQL query.    
-    """
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS users (
         user_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -207,58 +173,14 @@ def create_users_table(cursor):
     );
     """)
 
-
-# Function to hash a password
 def hash_password(password):
-    """
-    Hash a password using bcrypt.
-
-    Parameters
-    ----------
-    `password` : `str`
-        The password to hash.
-
-    Returns
-    -------
-    `hashed` : `str`
-        The hashed password.
-
-    Raises
-    ------
-    `ValueError`
-        If the password is not a string.
-    """
     # Generate a salt and hash the password
     salt = bcrypt.gensalt()
     hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
     return hashed
 
-
-# Function to validate a password
 def check_password(password, hashed):
-    """
-    Check if a password matches a given hash.
-
-    Parameters
-    ----------
-    `password` : `str`
-        The password to check.
-    `hashed` : `str`
-        The hashed password to compare against.
-
-    Returns
-    -------
-    `bool`
-        `True` if the password matches the hash, `False` otherwise.
-
-    Raises
-    ------
-    `ValueError`
-        If the password or hash is not a string.
-    """
-    # Check if the password matches the hash
     return bcrypt.checkpw(password.encode('utf-8'), hashed)
-
 
 def generate_observer_code(institution_code, first_name, last_name, existing_codes):
     """
@@ -303,8 +225,6 @@ def generate_observer_code(institution_code, first_name, last_name, existing_cod
 
     return code
 
-
-# Function to add a new user
 def add_user(connection, hashed_password, email, institution, first_name, last_name, user_level='novice'):
     """
     Add a new user to the database.
@@ -356,7 +276,6 @@ def add_user(connection, hashed_password, email, institution, first_name, last_n
     except sqlite3.IntegrityError as e:
         print(f"Error adding user: {e}")
 
-
 def validate_user_by_identifier(connection, identifier):
     """
     Validate a user by their username or email.
@@ -383,7 +302,6 @@ def validate_user_by_identifier(connection, identifier):
         SELECT * FROM users WHERE email = ? OR observer_code = ?;
     """, (identifier, identifier))
     return cursor.fetchone()
-
 
 def login_user(connection, identifier, password):
     """
@@ -417,7 +335,6 @@ def login_user(connection, identifier, password):
     logging.warning("Login failed: Invalid username/email or password.")
     return None
    
-
 def initiate_password_reset(connection, identifier):
     """
     Initiate the password reset process for a user by their username or email.
@@ -433,7 +350,6 @@ def initiate_password_reset(connection, identifier):
     else:
         print("No account found with that username or email.")
         return None
-
 
 def reset_password(connection, session_id, user_id, new_password):
     """
@@ -459,7 +375,6 @@ def reset_password(connection, session_id, user_id, new_password):
     `sqlite3.Error`
         If an error occurs while executing
     """
-
     if not validate_session(connection, session_id):
         logging.warning("Unauthorized request: Invalid or expired session.")
         return    
@@ -472,7 +387,6 @@ def reset_password(connection, session_id, user_id, new_password):
     """, (hashed_password, user_id))
     connection.commit()
     print("Password reset successfully.")
-
 
 def create_institutions_table(connection):
     """
@@ -502,7 +416,6 @@ def create_institutions_table(connection):
     """)
     connection.commit()
     print("Institutions table created.")
-
 
 def populate_institutions(connection):
     """
@@ -542,7 +455,6 @@ def populate_institutions(connection):
     except sqlite3.IntegrityError:
         print("Institutions already populated.")
 
-
 def list_institutions(connection):
     """
     List the available institutions in the database.
@@ -570,7 +482,6 @@ def list_institutions(connection):
             print(f"- {name} (Code: {code})")
     else:
         print("No institutions found.")
-
 
 def get_institutions(connection):
     """

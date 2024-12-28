@@ -51,7 +51,6 @@ def connect_observation_db():
         logging.error(f"Database connection error: {e}")
         raise
 
-
 def create_observation_requests_table(cursor):
     """
     Creates the observation requests table if it does not already exist.
@@ -70,6 +69,7 @@ def create_observation_requests_table(cursor):
         request_id INTEGER PRIMARY KEY AUTOINCREMENT,
         observer_code TEXT NOT NULL,
         target_name TEXT NOT NULL,
+        batch_id TEXT,
         ra TEXT NOT NULL,
         dec TEXT NOT NULL,
         observation_type TEXT NOT NULL,
@@ -97,7 +97,6 @@ def create_observation_requests_table(cursor):
     """
     cursor.execute(table_query)
     logging.info("Observation requests table created or already exists.")
-
 
 def is_duplicate_request(cursor, observer_code, **kwargs):
     """
@@ -155,7 +154,6 @@ def is_duplicate_request(cursor, observer_code, **kwargs):
     cursor.execute(query, params)
     count = cursor.fetchone()[0]
     return count > 0
-
 
 def add_observation_request(cursor, session, save=True, **kwargs):
     """
@@ -281,27 +279,27 @@ def add_observation_request(cursor, session, save=True, **kwargs):
     if is_duplicate_request(cursor, observer_code, **kwargs):
         logging.info("Duplicate observation request detected. Skipping addition.")
         return 0
+
+    params["batch_id"] = kwargs.get("batch_id", batch_idgen())
         
     insert_query = """
-    INSERT INTO observations (observer_code, target_name, ra, dec, observation_type, filters, nexp,
+    INSERT INTO observations (observer_code, target_name, batch_id, ra, dec, observation_type, filters, nexp,
                                        exposure_time, priority, status, cadence, reposition, reposition_x, reposition_y,
                                        utc_start_time, utc_start_date, utc_end_time, utc_end_date,
                                        lst_start_time, lst_start_date, lst_end_time, lst_end_date)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
     cursor.execute(insert_query, (
-        observer_code, params["target_name"], params["ra"], params["dec"], params["observation_type"],
-        params["filters"], params["nexp"], params["exposure_time"], params["priority"], params["status"],
-        params["cadence"], params["reposition"], params["reposition_x"], params["reposition_y"],
-        params["utc_start_time"], params["utc_start_date"], params["utc_end_time"], params["utc_end_date"],
-        params["lst_start_time"], params["lst_start_date"], params["lst_end_time"], params["lst_end_date"]
-    ))
+        observer_code, params["target_name"], params["batch_id"], params["ra"], params["dec"], 
+        params["observation_type"], params["filters"], params["nexp"], params["exposure_time"], 
+        params["priority"], params["status"], params["cadence"], params["reposition"], 
+        params["reposition_x"], params["reposition_y"], params["utc_start_time"], params["utc_start_date"], 
+        params["utc_end_time"], params["utc_end_date"], params["lst_start_time"], params["lst_start_date"], 
+        params["lst_end_time"], params["lst_end_date"]))
     if save:
         cursor.connection.commit()
         logging.info("Observation request added successfully.")
     return 1
-
-
 
 def add_batch_observations(connection, session, observations):
     """
@@ -352,7 +350,6 @@ def add_batch_observations(connection, session, observations):
     finally:
         cursor.close()
 
-
 def list_observation_requests(connection):
     """
     Fetches and displays all observation requests from the database in tabular format.
@@ -377,7 +374,6 @@ def list_observation_requests(connection):
             print(df.to_string(index=False))
     except sqlite3.Error as e:
         logging.error(f"Error retrieving observation requests: {e}")
-
 
 def edit_observation_request(connection, request_id, **kwargs):
     """
@@ -432,11 +428,9 @@ def edit_observation_request(connection, request_id, **kwargs):
     finally:
         cursor.close()
 
-
 def update_observation_status(connection, request_id, new_status):
     # Placeholder for updating request status
     pass
-
 
 def process_schedule_file(file_path, connection, session):
     """
@@ -508,20 +502,45 @@ def parse_schedule_file(file_path):
             except Exception as e:
                 logging.error(f"Error reading CSV file: {e}")
                 raise ValueError(f"Failed to parse schedule file: {e}")
-        ####### this probably needs to be updated to properly handle these file types #######
         elif file_extension in {'.sch', '.txt'}:
             for line in f:
-                parts = line.strip().split()
-                observations.append({
-                    'target_name': parts[0],
-                    'ra': parts[1],
-                    'dec': parts[2],
-                    'nexp': int(parts[3]),
-                    'exposure_time': int(parts[4]),
-                    'filters': parts[5] if len(parts) > 5 else 'default'
-                })
+                line = line.strip()
+                if not line or line.startswith("#"):
+                    continue
+                if line.startswith("source") or line.startswith("target") or line.startswith("target_name"):
+                    try:
+                        parts = line.split('"')
+                        target_name = parts[1] if len(parts) > 1 else None
+                        if not target_name:
+                            raise ValueError(f"Missing target name in line: {line}")
+
+                        params = line.split()
+                        obs = {"target_name": target_name}
+                        for i, param in enumerate(params):
+                            if param in {"ra", "dec", "nexp", "exposure_time", "filters", "readout", "cadence", "utstart"}:
+                                key = param.lower()
+                                value = params[i + 1]
+                                obs[key] = value
+                            
+                            # group by batch_id
+                            if param == "group":
+                                group_num = params[i + 1]
+                                obs["batch_id"] = batch_idgen() + group_num 
+                                
+                        if not {"ra", "dec"}.issubset(obs):
+                            raise ValueError(f"Missing required fields in line: {line}")
+
+                        obs["nexp"] = int(obs.get("nexp", 1))
+                        obs["exposure_time"] = int(obs.get("exposure_time", 1))
+                        observations.append(obs)
+                    except Exception as e:
+                        logging.warning(f"Skipping invalid line: {line} ({e})")
+                        continue
         else:
-            raise ValueError(f"Unsupported file format: {file_extension}\nSupported formats: .csv, .ecsv, .sch, .txt")
+            raise ValueError(f"Unsupported file format: {file_extension}. Supported formats: .csv, .ecsv, .sch, .txt")
+
+    if not observations:
+        raise ValueError("No valid observations found in the file.")
     return observations
 
 def ra_dec_check(ra, dec):
@@ -572,3 +591,51 @@ def ra_dec_check(ra, dec):
 
     return ra_hours, dec_degrees
 
+def batch_idgen():
+    """
+    Generates a unique batch ID for a group of observation requests.
+    """
+    cursor = connection.cursor()
+    cursor.execute(""""
+        SELECT batch_id FROM observations ORDER BY batch_id DESC LIMIT 1;""")
+    last_batch_id = cursor.fetchone()
+    if last_batch_id:
+        return last_batch_id + 1
+    return 1
+
+##### TESTING #####
+##### Please delete this section #####
+
+if __name__ == "__main__":
+    connection = connect_observation_db()
+    # list_observation_requests(connection)
+    # Path to your sample file
+    
+    # file_path = "sample_schedule.csv"  # or .txt, .sch based on your format
+
+    # # Parse the file
+    # try:
+    #     observations = parse_schedule_file(file_path)
+    #     print("Parsed Observations:")
+    #     for obs in observations:
+    #         print(obs)
+    # except Exception as e:
+    #     print(f"Error: {e}")
+    # # Mock session with observer code
+    # session = {"observer_code": "irm"}  # Replace "IRM" with your actual observer code if needed.
+
+    # # Adding parsed observations to the database
+    # try:
+    #     add_batch_observations(connection, session, observations)
+    #     print("All observations added successfully.")
+    # except Exception as e:
+    #     print(f"Error adding observations: {e}")
+
+    list_observation_requests(connection)
+
+#### Thoughts ####
+# - Add function to deal with sequential observations
+## - Schedule files that are submitted with observations in the same line will be sequential 
+## - Observations that are submitted on different lines will not be sequential
+# - Add submit by file to the submit webpage
+# - Fix visuals on submit page

@@ -6,13 +6,14 @@ import sqlite3, os
 app = Flask(__name__)
 app.secret_key = "secret_key"  # Replace with a strong secret key
 
-# This function removes redundant code by setting the logged_in and user_level variables for each request. This is required code.
+### This function removes redundant code by setting the logged_in and user_level variables for each request ###
+### This is required code ###
 @app.before_request
-def user_level_value():
+def user_values():
     g.logged_in = 'user_id' in session
     g.user_level = session.get('user_level', '')
+    g.observer_code = session.get('observer_code', '')
     
-
 # Default pages for the website(Home, Login, Register, FAQ, Logout)
 @app.route("/")
 def home():
@@ -137,69 +138,88 @@ def logout():
 
 
 # Observation and observation management pages
-@app.route('/schedule', methods=['GET', 'POST'])
+@app.route('/submit', methods=['GET', 'POST'])
 def schedule_observation():
     if 'user_id' not in session:
         flash("Please log in to access the scheduling form.")
         return redirect('/login')
 
-    user_level = session.get('user_level', 'novice')
-
+    form_type = 'single'  # Default form type
     if request.method == 'POST':
-        # Extract form data
-        ra = request.form.get('ra')
-        dec = request.form.get('dec')
-        nexp = request.form.get('nexp')
-        exposure_time = request.form.get('exposure_time')
-        filters = request.form.get('filters')
-        target_name = request.form.get('target_name')
+        form_type = request.form.get('form_type')
+        
+        if form_type == 'single':
+            ra = request.form.get('ra')
+            dec = request.form.get('dec')
+            nexp = request.form.get('nexp')
+            exposure_time = request.form.get('exposure_time')
+            filters = request.form.get('filters')
+            target_name = request.form.get('target_name')
 
-        # Validation (basic example)
-        if not (ra and dec and nexp and exposure_time):
-            flash("RA, Dec, number of exposures, and exposure time are required fields.")
-            return redirect("/schedule")
+            if not (ra and dec and nexp and exposure_time):
+                flash("RA, Dec, number of exposures, and exposure time are required fields.")
+                return render_template('submit.html', logged_in=g.logged_in, user_level=g.user_level, form_type=form_type)
+            try:
+                connection = s.connect_observation_db()
+                cursor = connection.cursor()
+                s.add_observation_request(
+                    cursor,
+                    session,
+                    ra=ra,
+                    dec=dec,
+                    nexp=int(nexp),
+                    exposure_time=int(exposure_time),
+                    filters=filters,
+                    target_name=target_name
+                )
+                connection.commit()
+                flash("Observation scheduled successfully!")
+            except Exception as e:
+                flash(f"Error scheduling observation: {e}")
+            finally:
+                connection.close()
 
-        try:
-            # Connect to database and add observation
-            connection = s.connect_observation_db()
-            cursor = connection.cursor()
-       
-            
-            s.add_observation_request(
-                cursor,
-                session,
-                ra=ra,
-                dec=dec,
-                nexp=int(nexp),
-                exposure_time=int(exposure_time),
-                filters=filters,
-                target_name=target_name
-            )
-            connection.commit()
-            flash("Observation scheduled successfully!")
-        except Exception as e:
-            flash(f"Error scheduling observation: {e}")
-        finally:
-            connection.close()
+        elif form_type == 'file':
+            if 'schedule_file' not in request.files:
+                flash("No file uploaded.")
+                return render_template('submit.html', logged_in=g.logged_in, user_level=g.user_level, form_type=form_type)
 
-        return redirect('/schedule')
-    
-    return render_template('schedule_form.html', user_level=user_level)
+            file = request.files['schedule_file']
+            if file.filename == '':
+                flash("No file selected.")
+                return render_template('submit.html', logged_in=g.logged_in, user_level=g.user_level, form_type=form_type)
 
-@app.route('/view_observations', methods=['GET', 'POST'])
+            upload_folder = os.path.join(os.getcwd(), 'uploads')
+            os.makedirs(upload_folder, exist_ok=True)
+            file_path = os.path.join(upload_folder, file.filename)
+            file.save(file_path)
+
+            try:
+                observations = s.parse_schedule_file(file_path)
+                connection = s.connect_observation_db()
+                s.add_batch_observations(connection, {"observer_code": g.observer_code}, observations)
+                flash(f"Successfully added {len(observations)} observations.")
+            except Exception as e:
+                flash(f"Error processing file: {e}")
+                app.logger.error(f"File processing error: {e}")
+            finally:
+                if os.path.exists(file_path):
+                    os.remove(file_path)
+
+    return render_template('submit.html', logged_in=g.logged_in, user_level=g.user_level, form_type=form_type)
+
+@app.route('/observations', methods=['GET', 'POST'])
 def view_edit_schedule():
-    return render_template('view_observations.html', logged_in=g.logged_in, user_level=g.user_level)
+    return render_template('observations.html', logged_in=g.logged_in, user_level=g.user_level)
 
-    return render_template('view_schedule.html')
 
-@app.route('/upload_schedule', methods=['GET', 'POST'])
-def upload_schedule():
-    if 'user_id' not in session:
+# @app.route('/upload_schedule', methods=['GET', 'POST'])
+# def upload_schedule():
+    if not g.logged_in:
         flash("Please log in to upload a schedule.")
         return redirect('/login')
 
-    user_level = session.get('user_level', '')
-    if user_level not in ['intermediate', 'advanced', 'admin']:
+    if g.user_level not in ['intermediate', 'advanced', 'admin']:
         flash("You do not have permission to upload schedules.")
         return redirect('/')
 
@@ -228,86 +248,87 @@ def upload_schedule():
         try:
             # Parse the file into observations
             observations = s.parse_schedule_file(file_path)
-            session['observations'] = observations  # Store for review
-            os.remove(file_path)  # Clean up the temporary file
-            return redirect('/review_schedule')
+            connection = s.connect_observation_db()
+            s.add_batch_observations(connection, {"observer_code": g.observer_code}, observations)
+            flash(f"Successfully added {len(observations)} observations.")
+            return redirect('/observations')
         except Exception as e:
             flash(f"Error processing file: {e}")
             app.logger.error(f"File processing error: {e}")
-            os.remove(file_path)  # Clean up even on failure
+        finally:
+            if os.path.exists(file_path):
+                os.remove(file_path)
 
     return render_template('schedule_file.html', logged_in=g.logged_in, user_level=g.user_level)
 
-@app.route('/review_schedule', methods=['GET', 'POST'])
-def review_schedule():
-    if 'observations' not in session:
-        flash("No observations to review.")
-        return redirect('/upload_schedule')
+# @app.route('/review_schedule', methods=['GET', 'POST'])
+# def review_schedule():
+#     if 'observations' not in session:
+#         flash("No observations to review.")
+#         return redirect('/upload_schedule')
 
-    observations = session['observations']
+#     observations = session['observations']
 
-    if request.method == 'POST':
-        # Handle edits or submission
-        action = request.form.get('action')
-        if action == 'edit':
-            # Update session with new observation data
-            observation_index = int(request.form.get('observation_index'))
-            observations[observation_index] = {
-                'target_name': request.form.get('target_name'),
-                'ra': request.form.get('ra'),
-                'dec': request.form.get('dec'),
-                'nexp': int(request.form.get('nexp')),
-                'exposure_time': int(request.form.get('exposure_time')),
-                'filters': request.form.get('filters')
-            }
-            session['observations'] = observations
-            flash("Observation updated.")
-        elif action == 'commit':
-            try:
-                # Add all observations to the database
-                connection = s.connect_observation_db()
-                cursor = connection.cursor()
-                observer_code = session.get('observer_code')
-                for obs in observations:
-                    s.add_observation_request(cursor, session, **obs)
-                connection.commit()
-                session.pop('observations')  # Clear session
-                flash("Observations committed successfully.")
-                return redirect('/')
-            except Exception as e:
-                flash(f"Error committing observations: {e}")
-            finally:
-                connection.close()
+#     if request.method == 'POST':
+#         # Handle edits or submission
+#         action = request.form.get('action')
+#         if action == 'edit':
+#             # Update session with new observation data
+#             observation_index = int(request.form.get('observation_index'))
+#             observations[observation_index] = {
+#                 'target_name': request.form.get('target_name'),
+#                 'ra': request.form.get('ra'),
+#                 'dec': request.form.get('dec'),
+#                 'nexp': int(request.form.get('nexp')),
+#                 'exposure_time': int(request.form.get('exposure_time')),
+#                 'filters': request.form.get('filters')
+#             }
+#             session['observations'] = observations
+#             flash("Observation updated.")
+#         elif action == 'commit':
+#             try:
+#                 # Add all observations to the database
+#                 connection = s.connect_observation_db()
+#                 cursor = connection.cursor()
+#                 observer_code = session.get('observer_code')
+#                 for obs in observations:
+#                     s.add_observation_request(cursor, session, **obs)
+#                 connection.commit()
+#                 session.pop('observations')  # Clear session
+#                 flash("Observations committed successfully.")
+#                 return redirect('/')
+#             except Exception as e:
+#                 flash(f"Error committing observations: {e}")
+#             finally:
+#                 connection.close()
 
-    return render_template('review_schedule.html', observations=observations, logged_in=g.logged_in, user_level=g.user_level)
+#     return render_template('review_schedule.html', observations=observations, logged_in=g.logged_in, user_level=g.user_level)
 
-@app.route('/manage_observations', methods=['GET', 'POST'])
-def manage_observations():
+# @app.route('/manage_observations', methods=['GET', 'POST'])
+# def manage_observations():
     if 'user_id' not in session:
         flash("Please log in to manage observations.")
         return redirect('/login')
 
     return render_template('manage_observations.html', logged_in=g.logged_in, user_level=g.user_level)
 
-
 # Account management pages (account details, admin dashboard)
-@app.route('/account_details', methods=['GET', 'POST'])
-def account_details():
+@app.route('/account', methods=['GET', 'POST'])
+def account():
     if 'user_id' not in session:
         flash("Please log in to view account details.")
         return redirect('/login')
 
-    return render_template('account_details.html', logged_in=g.logged_in, user_level=g.user_level)
+    return render_template('account.html', logged_in=g.logged_in, user_level=g.user_level)
 
-@app.route('/admin_dashboard', methods=['GET', 'POST'])
-def admin_dashboard():
+@app.route('/admin', methods=['GET', 'POST'])
+def admin():
     user_level=g.user_level
     if user_level != 'admin':
         flash("You do not have permission to access the admin dashboard.")
         return redirect('/')
 
-    return render_template('admin_dashboard.html', logged_in=g.logged_in)
-
+    return render_template('admin.html', logged_in=g.logged_in, user_level=g.user_level)
 
 
 
